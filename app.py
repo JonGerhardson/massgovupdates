@@ -160,9 +160,11 @@ def crawl_and_post():
             features=[Tag(tag='mapoli')] # The tag value does not include the '#'
         ))
 
-        # Send the post with the text and the facets that make links clickable
         client.send_post(text=post_text, facets=facets)
         print("✅ Successfully posted to Bluesky with clickable links.")
+
+    except Exception as e:
+        print(f"❌ Failed to post to Bluesky: {e}")
 
 if __name__ == "__main__":
     crawl_and_post()
