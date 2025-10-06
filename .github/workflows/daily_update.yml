@@ -1,12 +1,17 @@
-# This workflow can be triggered manually or on a schedule.
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 12 * * *' # Runs at 12:00 UTC every day
 
 jobs:
   build-and-commit:
     runs-on: ubuntu-latest
+    
+    # This is the key change: Grant write permissions to the job.
+    # This allows the action to push the generated file back to your repository.
+    permissions:
+      contents: write
+
     steps:
       # Step 1: Check out your repository's code
       - name: Checkout repository
@@ -16,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Specify a Python version
+          python-version: '3.10'
 
       # Step 3: Install the required Python libraries
       - name: Install dependencies
@@ -25,12 +30,13 @@ jobs:
           pip install -r requirements.txt
 
       # Step 4: Run the Python script to find updates
+      # The script is named massgov_crawler.py in the canvas, not app.py
       - name: Run the sitemap crawler and Bluesky bot
         env:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python app.py
+        run: python massgov_crawler.py
 
       # Step 5: Commit the new CSV file to your repository
       - name: Commit daily update file
@@ -47,3 +53,4 @@ jobs:
             git commit -m "Add daily updates for $YESTERDAY"
             git push
           fi
+
