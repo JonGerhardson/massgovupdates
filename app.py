@@ -34,7 +34,7 @@ def fetch_updated_urls(sitemap_index_url, date_to_check):
         sitemap_urls = [elem.text for elem in index_root.findall('sitemap:sitemap/sitemap:loc', ns)]
         logging.info(f"Found {len(sitemap_urls)} individual sitemaps to crawl.")
 
-        for sitemap_url in sitemaps_urls:
+        for sitemap_url in sitemap_urls:
             try:
                 sitemap_response = requests.get(sitemap_url)
                 sitemap_response.raise_for_status()
