@@ -1,8 +1,15 @@
-steps:
-  # Step 1: Check out your repository's code
-  - name: Checkout repository
-    uses: actions/checkout@v4
+on:
+workflow_dispatch:
+schedule:
+- cron: '0 12 * * *'
 
+jobs:
+build-and-commit:
+runs-on: ubuntu-latest
+steps:
+# Step 1: Check out your repository's code
+- name: Checkout repository
+uses: actions/checkout@v4
   # Step 2: Set up Python environment
   - name: Set up Python
     uses: actions/setup-python@v5
