@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from atproto import Client
 # This import is essential for creating the rich text facets (clickable links)
 from atproto.xrpc_client.models import main as Main
+from atproto_client.models.app.bsky.richtext.facet import Tag
 
 def crawl_and_post():
     """
@@ -84,53 +85,84 @@ def crawl_and_post():
         print("\nAttempting to post to Bluesky...")
         client = Client()
         client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
+# posting
+        hashtag = "#mapoli" # Define the hashtag
 
-        first_url = found_urls[0][0]
-        num_others = len(found_urls) - 1
-        update_date_str = YESTERDAY.strftime('%B %d, %Y')
-        results_link_in_repo = f"https://github.com/{REPO_URL}/blob/main/{OUTPUT_FILE}"
-
-        # --- Create Rich Text with clickable links (facets) ---
-        post_text = f"{first_url}"
+        # Build the first part of the post
+        post_text_start = f"{first_url}"
         if num_others > 0:
-            post_text += f" and {num_others} others were"
+            post_text_start += f" and {num_others} others were"
         else:
-            post_text += " was"
-        post_text += f" updated on {update_date_str}. See all updates: {results_link_in_repo}"
+            post_text_start += " was"
+        post_text_start += f" updated on {update_date_str}."
+
+        # Combine all parts with two linebreaks and the hashtag
+        post_text = (
+            f"{post_text_start}\n\n"
+            f"See all updates: {results_link_in_repo} {hashtag}"
+        )
 
         # Truncate if necessary to stay under the 300 character limit
         if len(post_text.encode('utf-8')) > 300:
-            # A simple way to truncate the first URL to make space
-            overhead = len(post_text) - len(first_url)
+            overhead = len(post_text.encode('utf-8')) - len(first_url.encode('utf-8'))
             allowed_url_len = 300 - overhead - 3 # -3 for "..."
-            first_url_display = f"{first_url[:allowed_url_len]}..."
-            post_text = f"{first_url_display}" + post_text[len(first_url):]
+            
+            # Truncate based on bytes to be safe with unicode
+            encoded_url = first_url.encode('utf-8')
+            if len(encoded_url) > allowed_url_len:
+                encoded_url = encoded_url[:allowed_url_len]
+                while True:
+                    try:
+                        first_url_display = encoded_url.decode('utf-8') + "..."
+                        break
+                    except UnicodeDecodeError:
+                        encoded_url = encoded_url[:-1]
+            else:
+                 first_url_display = first_url
+
+            # Rebuild post_text with the truncated URL
+            post_text_start = f"{first_url_display}"
+            if num_others > 0:
+                post_text_start += f" and {num_others} others were"
+            else:
+                post_text_start += " was"
+            post_text_start += f" updated on {update_date_str}."
+            post_text = (
+                f"{post_text_start}\n\n"
+                f"See all updates: {results_link_in_repo} {hashtag}"
+            )
         else:
             first_url_display = first_url
 
         facets = []
         # Create a facet for the first URL
         # The feature is the full URL, the index is based on the (potentially truncated) display text
-        facets.append(Main.Facet(
-            index=Main.ByteSlice(byteStart=0, byteEnd=len(first_url_display.encode('utf-8'))),
-            features=[Main.Link(uri=first_url)]
+        facets.append(Facet(
+            index=ByteSlice(byteStart=0, byteEnd=len(first_url_display.encode('utf-8'))),
+            features=[Link(uri=first_url)]
         ))
         
         # Create a facet for the GitHub repository link
         repo_link_start_index = post_text.find(results_link_in_repo)
         start_bytes = len(post_text[:repo_link_start_index].encode('utf-8'))
         end_bytes = start_bytes + len(results_link_in_repo.encode('utf-8'))
-        facets.append(Main.Facet(
-            index=Main.ByteSlice(byteStart=start_bytes, byteEnd=end_bytes),
-            features=[Main.Link(uri=results_link_in_repo)]
+        facets.append(Facet(
+            index=ByteSlice(byteStart=start_bytes, byteEnd=end_bytes),
+            features=[Link(uri=results_link_in_repo)]
+        ))
+        
+        # Create a facet for the #mapoli hashtag
+        tag_start_index = post_text.find(hashtag)
+        start_bytes = len(post_text[:tag_start_index].encode('utf-8'))
+        end_bytes = start_bytes + len(hashtag.encode('utf-8'))
+        facets.append(Facet(
+            index=ByteSlice(byteStart=start_bytes, byteEnd=end_bytes),
+            features=[Tag(tag='mapoli')] # The tag value does not include the '#'
         ))
 
         # Send the post with the text and the facets that make links clickable
         client.send_post(text=post_text, facets=facets)
         print("✅ Successfully posted to Bluesky with clickable links.")
-
-    except Exception as e:
-        print(f"❌ Failed to post to Bluesky: {e}")
 
 if __name__ == "__main__":
     crawl_and_post()
