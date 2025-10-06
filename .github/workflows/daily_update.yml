@@ -36,7 +36,7 @@ jobs:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python massgov_crawler.py
+        run: python app.py
 
       # Step 5: Commit the new CSV file to your repository
       - name: Commit daily update file
