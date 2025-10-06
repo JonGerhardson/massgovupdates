@@ -5,7 +5,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 from atproto import Client
-from atproto_client.models.app.bsky.richtext.facet import Facet, Link, Tag, ByteSlice
+from atproto_client.models import AppBskyRichtextFacet
 
 # --- Basic Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,7 +34,7 @@ def fetch_updated_urls(sitemap_index_url, date_to_check):
         sitemap_urls = [elem.text for elem in index_root.findall('sitemap:sitemap/sitemap:loc', ns)]
         logging.info(f"Found {len(sitemap_urls)} individual sitemaps to crawl.")
 
-        for sitemap_url in sitemap_urls:
+        for sitemap_url in sitemaps_urls:
             try:
                 sitemap_response = requests.get(sitemap_url)
                 sitemap_response.raise_for_status()
@@ -87,7 +87,6 @@ def post_update_to_bluesky(found_urls, csv_filepath, config):
         update_date_str = (datetime.now().date() - timedelta(days=1)).strftime('%B %d, %Y')
         
         # Construct the link to the results file in the GitHub repo
-        # Assumes the script is run from the root of the repo.
         csv_filename = os.path.basename(csv_filepath)
         results_link_in_repo = f"https://github.com/{config['repo_owner_and_name']}/blob/main/{config['output_dir']}/{csv_filename}"
 
@@ -99,15 +98,12 @@ def post_update_to_bluesky(found_urls, csv_filepath, config):
             f"See all updates: {results_link_in_repo} {config['hashtag']}"
         )
         
-        # Check length and truncate the display URL if needed
-        # 300 is the Bluesky character limit. We check the byte length for accuracy.
         overhead_bytes = len(full_post_template.format(url_display="").encode('utf-8'))
         allowed_url_bytes = 300 - overhead_bytes - 3 # -3 for "..."
         
         first_url_bytes = first_url.encode('utf-8')
         if len(first_url_bytes) > allowed_url_bytes:
             truncated_bytes = first_url_bytes[:allowed_url_bytes]
-            # Ensure we don't cut in the middle of a multi-byte character
             while True:
                 try:
                     first_url_display = truncated_bytes.decode('utf-8') + "..."
@@ -123,29 +119,30 @@ def post_update_to_bluesky(found_urls, csv_filepath, config):
         facets = []
         
         # Facet for the first (potentially truncated) URL
-        facets.append(Facet(
-            index=ByteSlice(byteStart=0, byteEnd=len(first_url_display.encode('utf-8'))),
-            features=[Link(uri=first_url)]
+        # NOTE: The class names have changed from Facet, ByteSlice, Link, etc.
+        facets.append(AppBskyRichtextFacet.Main(
+            index=AppBskyRichtextFacet.ByteSlice(byteStart=0, byteEnd=len(first_url_display.encode('utf-8'))),
+            features=[AppBskyRichtextFacet.Link(uri=first_url)]
         ))
         
         # Facet for the GitHub repo link
         repo_link_start_byte = len(post_text.encode('utf-8')) - len(f" {results_link_in_repo} {config['hashtag']}".encode('utf-8')) + 1
-        facets.append(Facet(
-            index=ByteSlice(
+        facets.append(AppBskyRichtextFacet.Main(
+            index=AppBskyRichtextFacet.ByteSlice(
                 byteStart=repo_link_start_byte, 
                 byteEnd=repo_link_start_byte + len(results_link_in_repo.encode('utf-8'))
             ),
-            features=[Link(uri=results_link_in_repo)]
+            features=[AppBskyRichtextFacet.Link(uri=results_link_in_repo)]
         ))
         
         # Facet for the hashtag
         tag_start_byte = len(post_text.encode('utf-8')) - len(config['hashtag'].encode('utf-8'))
-        facets.append(Facet(
-            index=ByteSlice(
+        facets.append(AppBskyRichtextFacet.Main(
+            index=AppBskyRichtextFacet.ByteSlice(
                 byteStart=tag_start_byte,
                 byteEnd=tag_start_byte + len(config['hashtag'].encode('utf-8'))
             ),
-            features=[Tag(tag=config['hashtag'].lstrip('#'))] # Tag value does not include '#'
+            features=[AppBskyRichtextFacet.Tag(tag=config['hashtag'].lstrip('#'))] # Tag value does not include '#'
         ))
         
         # --- Send the post ---
@@ -161,7 +158,6 @@ def main():
     # --- Configuration ---
     BLUESKY_HANDLE = os.environ.get("BLUESKY_HANDLE")
     BLUESKY_APP_PASSWORD = os.environ.get("BLUESKY_APP_PASSWORD")
-    # GITHUB_REPOSITORY is usually in 'owner/repo' format
     GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY")
 
     config = {
