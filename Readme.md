@@ -1,0 +1,1 @@
+A bot that looks for newly updated pages at mass.gov/sitemap.xml and posts about it on bluesky [@massgovupdatesbot.bsky.social](https://bsky.app/profile/massgovupdatesbot.bsky.social) for pages with a last updated date of yesterday. Posts one updated page and a link to a csv file containing all updates for that date. 
