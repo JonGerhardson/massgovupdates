@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import os
 from datetime import datetime, timedelta
-aafrom atproto import Client
+from atproto import Client
 
 def crawl_and_post():
     """
