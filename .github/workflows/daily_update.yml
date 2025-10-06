@@ -1,50 +1,49 @@
+# This workflow can be triggered manually or on a schedule.
 on:
-workflow_dispatch:
-schedule:
-- cron: '0 12 * * *'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * *'
 
 jobs:
-build-and-commit:
-runs-on: ubuntu-latest
-steps:
-# Step 1: Check out your repository's code
-- name: Checkout repository
-uses: actions/checkout@v4
-  # Step 2: Set up Python environment
-  - name: Set up Python
-    uses: actions/setup-python@v5
-    with:
-      python-version: '3.10' # Specify a Python version
+  build-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out your repository's code
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  # Step 3: Install the required Python libraries
-  - name: Install dependencies
-    run: |
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
+      # Step 2: Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # Specify a Python version
 
-  # Step 4: Run the Python script to find updates
-  # The script will generate a CSV file in the `daily_updates` directory
-  # and post to Bluesky using the secrets.
-  - name: Run the sitemap crawler and Bluesky bot
-    env:
-      BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
-      BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
-      GITHUB_REPOSITORY: ${{ github.repository }}
-    run: python app.py
+      # Step 3: Install the required Python libraries
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-  # Step 5: Commit the new CSV file to your repository
-  # This step will only run if the script actually created a new file.
-  - name: Commit daily update file
-    run: |
-      git config --global user.name 'github-actions[bot]'
-      git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-      git add daily_updates/*.csv
-      # Check if there are changes to commit
-      if git diff --staged --quiet; then
-        echo "No changes to commit."
-      else
-        # Use YESTERDAY's date for the commit message
-        YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
-        git commit -m "Add daily updates for $YESTERDAY"
-        git push
-      fi
+      # Step 4: Run the Python script to find updates
+      - name: Run the sitemap crawler and Bluesky bot
+        env:
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python app.py
+
+      # Step 5: Commit the new CSV file to your repository
+      - name: Commit daily update file
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add daily_updates/*.csv
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            # Use YESTERDAY's date for the commit message
+            YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
+            git commit -m "Add daily updates for $YESTERDAY"
+            git push
+          fi
