@@ -1,5 +1,6 @@
 import requests
-import xml.etree.ElementTree as ET
+# import xml.etree.ElementTree as ET # Switched to lxml
+from lxml import etree as ET # Use lxml for robust parsing
 import csv
 import os
 import logging
@@ -13,6 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def fetch_updated_urls(sitemap_index_url, date_to_check):
     """
     Crawls a sitemap index and finds all URLs modified on a specific date.
+    Uses lxml's recovery parser to handle malformed XML.
 
     Args:
         sitemap_index_url (str): The URL of the main sitemap index XML.
@@ -27,10 +29,14 @@ def fetch_updated_urls(sitemap_index_url, date_to_check):
     date_str = date_to_check.strftime('%Y-%m-%d')
     logging.info(f"Starting crawl of {sitemap_index_url} for pages modified on {date_str}")
 
+    # Create a parser that can recover from errors
+    recovery_parser = ET.XMLParser(recover=True)
+
     try:
         index_response = requests.get(sitemap_index_url)
         index_response.raise_for_status()
-        index_root = ET.fromstring(index_response.content)
+        # Parse the main index; use recovery parser for safety
+        index_root = ET.fromstring(index_response.content, parser=recovery_parser)
         sitemap_urls = [elem.text for elem in index_root.findall('sitemap:sitemap/sitemap:loc', ns)]
         logging.info(f"Found {len(sitemap_urls)} individual sitemaps to crawl.")
 
@@ -38,24 +44,40 @@ def fetch_updated_urls(sitemap_index_url, date_to_check):
             try:
                 sitemap_response = requests.get(sitemap_url)
                 sitemap_response.raise_for_status()
-                sitemap_root = ET.fromstring(sitemap_response.content)
+                # Use the recovery_parser when parsing the content of each individual sitemap
+                sitemap_root = ET.fromstring(sitemap_response.content, parser=recovery_parser)
+                
                 for url_entry in sitemap_root.findall('sitemap:url', ns):
                     loc_element = url_entry.find('sitemap:loc', ns)
                     lastmod_element = url_entry.find('sitemap:lastmod', ns)
-                    if loc_element is not None and lastmod_element is not None:
+                    
+                    # Check that elements exist and have text content before proceeding
+                    if loc_element is not None and loc_element.text and \
+                       lastmod_element is not None and lastmod_element.text:
+                        
                         url = loc_element.text
                         lastmod_text = lastmod_element.text
-                        # Use slicing to ignore timezone info for broader compatibility
-                        mod_date = datetime.fromisoformat(lastmod_text.split('T')[0]).date()
-                        if mod_date == date_to_check:
-                            found_urls.append([url, lastmod_text])
-                            logging.info(f"  ✅ Match found: {url}")
+                        
+                        try:
+                            # Use slicing to ignore timezone info for broader compatibility
+                            mod_date = datetime.fromisoformat(lastmod_text.split('T')[0]).date()
+                            if mod_date == date_to_check:
+                                found_urls.append([url, lastmod_text])
+                                logging.info(f"  ✅ Match found: {url}")
+                        except ValueError as e:
+                            logging.warning(f"  ⚠️ Skipping URL with invalid date format '{lastmod_text}' in {sitemap_url}: {e}")
+                    
             except requests.exceptions.RequestException as e:
                 logging.warning(f"  ❌ Could not process sitemap {sitemap_url}: {e}")
-            except ET.ParseError as e:
-                logging.warning(f"  ❌ Error parsing XML for {sitemap_url}: {e}")
+            # Catch XMLSyntaxError which lxml raises even in recovery mode for severe errors
+            except ET.XMLSyntaxError as e:
+                logging.warning(f"  ❌ Error parsing XML for {sitemap_url} (lxml recovery failed): {e}")
+                
     except requests.exceptions.RequestException as e:
         logging.critical(f"FATAL: Could not fetch the main sitemap index: {e}")
+        return []
+    except ET.XMLSyntaxError as e:
+        logging.critical(f"FATAL: Could not parse the main sitemap index: {e}")
         return []
     
     return found_urls
