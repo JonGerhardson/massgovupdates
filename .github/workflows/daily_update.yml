@@ -1,5 +1,8 @@
+# This workflow runs the sitemap crawler daily and commits the results.
+name: Run Daily Sitemap Crawler
+
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual triggering
   schedule:
     - cron: '0 12 * * *' # Runs at 12:00 UTC every day
 
@@ -7,8 +10,7 @@ jobs:
   build-and-commit:
     runs-on: ubuntu-latest
     
-    # This is the key change: Grant write permissions to the job.
-    # This allows the action to push the generated file back to your repository.
+    # Grant write permissions to the job to allow pushing commits.
     permissions:
       contents: write
 
@@ -24,13 +26,20 @@ jobs:
           python-version: '3.10'
 
       # Step 3: Install the required Python libraries
+      # Assumes you have a requirements.txt file
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # You will need to add lxml to your requirements.txt
+          # For now, we install it manually here.
+          # If you have a requirements.txt, uncomment the next line
           pip install -r requirements.txt
-
+          
+          # Manually install dependencies if requirements.txt doesn't exist
+          # Make sure to add 'lxml' here!
+          # pip install requests lxml atproto
+          
       # Step 4: Run the Python script to find updates
-      # The script is named massgov_crawler.py in the canvas, not app.py
       - name: Run the sitemap crawler and Bluesky bot
         env:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
