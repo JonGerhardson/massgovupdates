@@ -1,5 +1,4 @@
 import requests
-# import xml.etree.ElementTree as ET # Switched to lxml
 from lxml import etree as ET # Use lxml for robust parsing
 import csv
 import os
